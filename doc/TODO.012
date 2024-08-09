@@ -1,0 +1,35 @@
+(Remember to include both the revision number _AND_ an abbreviated
+description of the patch.)
+
+Backport items for 0.1.2:
+  o r11166: Don't believe future dates from the state file.
+  o r11828+: Detect bad sa_family from accept().
+  o r11882: Avoid crash-bug 451.
+  o r11886: Consider family as well as identity when cannibalizing circuits.
+  - backport the osx privoxy.config changes
+  X no need to backport the windows privoxy.config changes because they're
+    not in SVN??
+  o r12339: rlim_t may be wider than unsigned long.
+  o r12341: Work if the real open-file limit is OPEN_FILES.
+  o r12459: Exit policies reject public IP address too
+  X r13532: Drop tor_strpartition().
+
+Backport for 0.1.2.x once better tested:
+  D r11287: Reject address mappings to internal addresses. (??)
+    (this will break some existing test-network configurations, yes?)
+  o r11499, r11500, r11501: hidserv hexdigests rather than nicknames
+  o r11829: Don't warn when cancel_pending_resolve() finds a cached failure.
+  o r11915: just because you hup, don't publish a near-duplicate descriptor
+  d r11994: Call routerlist_remove_old_routers() less.  This will be a
+            tricky backport.
+  X r12153 and r12154: Give better warnings when we fail to mmap a descriptor
+            store that we just wrote.
+  X r12945: better cross-compilation support in configure.in
+  X r12946: iPhone support; requires r12945.
+  X r13647: Make "trackhostexits ." work
+    - Document that trackhostexits . doesn't work in 0.1.2.x
+  - r13406: fix bandwidth bucket calculations
+  - r13372: Don't use ourselves as intro point, rend point, or final hop
+    for internal circuits.
+  - r13643: reset timeout when flushing final bytes from a connection.
+  - r13655: avoid flush on connection closed because of bug.
