@@ -1,0 +1,58 @@
+parameters:
+  OSName: ''
+  ExeExt: ''
+  torDir: 'bin/tor'
+  winRuntimeDir: 'C:\msys64\mingw64\bin'
+  winRuntimeFiles: '*lib*.dll'
+
+steps:
+- task: CopyFiles@2
+  inputs:
+    contents: |
+      src/app/tor${{parameters.ExeExt}}
+    targetFolder: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+    cleanTargetFolder: true
+    flattenFolders: true
+  displayName: "Copying executables"
+
+- task: CopyFiles@2
+  inputs:
+    sourceFolder: '${{parameters.winRuntimeDir}}'
+    contents: |
+      ${{parameters.winRuntimeFiles}}
+    targetFolder: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+  condition: eq(variables['Agent.OS'], 'Windows_NT')
+  displayName: "Copying runtime dependencies for Windows"
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+    includeRootFolder: true
+    archiveType: '7z'
+    sevenZipCompression: 'ultra'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/tor-${{parameters.OSName}}-$(Build.BuildNumber).7z'
+    replaceExistingArchive: true
+    verbose: true
+  condition: ne('${{ parameters.OSName }}', 'macarm')
+
+- script: |
+    export PATH=$HOME/homebrew/bin:$PATH
+    7za a -t7z -mx=9 '$(Build.ArtifactStagingDirectory)/tor-${{parameters.OSName}}-$(Build.BuildNumber).7z' '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+  displayName: 'Create 7z archive on macarm'
+  condition: eq('${{ parameters.OSName }}', 'macarm')
+
+#- task: ArchiveFiles@2
+#  inputs:
+#    rootFolderOrFile: '$(Build.SourcesDirectory)/${{parameters.torDir}}'
+#    includeRootFolder: true
+#    archiveType: '7z'
+#    sevenZipCompression: 'ultra'
+#    archiveFile: '$(Build.ArtifactStagingDirectory)/tor-${{parameters.OSName}}-latest.7z'
+#    replaceExistingArchive: true
+#    verbose: true
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'tor'
+    publishLocation: 'Container'
