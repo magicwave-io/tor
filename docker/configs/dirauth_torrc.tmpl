@@ -1,0 +1,43 @@
+TestingTorNetwork 1
+Nickname ${inventory_hostname}
+Address ${self_host}
+ContactInfo auth0@test.test
+AssumeReachable 1
+
+PathsNeededToBuildCircuits 0.95
+DataDirectory ${data_directory}
+PidFile ${data_directory}/pid
+RunAsDaemon 0
+ShutdownWaitLength 2
+
+DisableDebuggerAttachment 0
+
+ControlPort 9051
+ControlSocket ${data_directory}/control
+CookieAuthentication 1
+
+PPChannelCallbackPort 5817
+PPChannelPort 28080
+EnablePaymentLog 1
+
+ProtocolWarnings 1
+SafeLogging 0
+LogTimeGranularity 1
+#Sandbox 1
+
+${dirauth}
+
+SocksPort 9050
+OrPort 5037
+ExitRelay 0
+DirPort 7001
+
+#ServerDNSDetectHijacking 0
+#ServerDNSTestAddresses
+#ServerDNSResolvConfFile /etc/resolv.conf
+
+AuthoritativeDirectory 1
+V3AuthoritativeDirectory 1
+
+#ExitPolicy reject *:*
+#ExitPolicy reject6 *:*
