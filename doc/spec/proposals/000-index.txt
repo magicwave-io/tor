@@ -1,0 +1,28 @@
+Filename: 000-index.txt
+Title: Index of Tor Proposals
+Version: $Revision$
+Last-Modified: $Date$
+Author: Nick Mathewson
+Created: 26-Jan-2007
+Status: Meta
+
+Overview:
+
+   This document provides an index to Tor proposals.
+
+   This is an informational document.
+
+Proposals by number:
+
+000  Index of Tor Proposals [META]
+001  The Tor Proposal Process [META]
+098  Proposals that should be written [META]
+099  Miscellaneous proposals [META]
+100  Tor Unreliable Datagram Extension Proposal [DEAD]
+101  Voting on the Tor Directory System [OPEN]
+102  Dropping "opt" from the directory format [CLOSED]
+103  Splitting identity key from regularly used signing key [OPEN]
+104  Long and Short Router Descriptors [OPEN]
+105  Version negotiation for the Tor protocol [OPEN]
+106  Checking fewer things during TLS handshakes [CLOSED]
+
