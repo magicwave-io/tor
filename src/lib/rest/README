@@ -1,0 +1,15 @@
+In order to make tor_rest lib to have everything else statically linked into it, the following needs to be done:
+In Visual studio:
+1. Use add reference operation on tor_rest project and add references to the following projects:
+   - libmicrohttpd
+   - pugixml
+   - rest_server
+2. In tor_rest project properties change option Linker->
+Link library dependencies No -> Yes
+
+Note: If you need to do this manually in windows, use
+lib.exe /OUT:compositelib.lib  lib1.lib lib2.lib
+from vs command line.
+
+In Linux:
+Should be done automatically using cmake script using ar tooling, please see cmake config for more details.
