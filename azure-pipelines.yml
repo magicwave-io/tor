@@ -1,0 +1,70 @@
+# C/C++ with GCC
+# Build your C/C++ project with GCC using make.
+# Add steps that publish test results, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/c-cpp/gcc
+
+trigger:
+- magicwave_v0.4.8-dev
+
+variables:
+   major: 1
+   minor: 0
+
+name: $(major).$(minor)$(Rev:.r)
+
+jobs:
+- job: Tor_Plus_For_Linux
+
+  pool:
+    name: Ubuntu_Pool
+
+  steps:
+  - script: |
+      ./autogen.sh
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autogen'
+
+  - script: |
+      autoreconf -f -i
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autoreconf'
+
+  - script: |
+      ./configure --disable-asciidoc
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'configure'
+
+  - script: |
+      make -j $(nproc)
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make'
+
+  - script: |
+      make test
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make test'
+
+  - task: CopyFiles@2
+    inputs:
+      contents: |
+        src/app/tor
+      targetFolder: '$(Build.SourcesDirectory)/bin/tor'
+      cleanTargetFolder: true
+      flattenFolders: true
+    displayName: "Copying executables"
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: '$(Build.SourcesDirectory)/bin/tor'
+      includeRootFolder: true
+      archiveType: '7z'
+      sevenZipCompression: 'ultra'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/tor-linux-$(Build.BuildNumber).7z'
+      replaceExistingArchive: true
+      verbose: true
+  
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: 'tor'
+      publishLocation: 'Container'
