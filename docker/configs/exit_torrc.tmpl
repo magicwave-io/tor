@@ -1,0 +1,52 @@
+TestingTorNetwork 1
+PathsNeededToBuildCircuits 0.67
+TestingDirAuthVoteExit *
+TestingDirAuthVoteHSDir *
+V3AuthNIntervalsValid 2
+CircuitsAvailableTimeout 3600
+CountPrivateBandwidth 0
+MaxCircuitDirtiness 544000
+AccountingStart day 0:00
+AccountingMax 50 GBytes
+RelayBandwidthRate 1000 KBytes
+RelayBandwidthBurst 5000 KBytes
+TestingDirAuthVoteGuard *
+TestingMinExitFlagThreshold 0
+DataDirectory ${data_directory}
+RunAsDaemon 0
+ConnLimit 60
+Nickname ${inventory_hostname}
+ShutdownWaitLength 2
+DisableDebuggerAttachment 0
+ControlPort 9051
+ControlSocket ${data_directory}/control
+CookieAuthentication 1
+PidFile ${data_directory}/pid
+PPChannelCallbackPort 5817
+PPChannelPort 28080
+EnablePaymentLog 1
+ProtocolWarnings 1
+SafeLogging 0
+LogTimeGranularity 1
+Sandbox 1
+
+${dirauth}
+
+SocksPort 0
+OrPort 5037
+Address ${self_host}
+ServerDNSDetectHijacking 0
+ServerDNSTestAddresses
+ServerDNSResolvConfFile /etc/resolv.conf
+#DirPort 7001
+ExitPolicy accept 127.0.0.0/8:*
+ExitPolicyRejectPrivate 0
+ExitPolicy accept private:*
+ExitPolicy accept *:*
+ExitPolicy reject *:*
+ExitRelay 1
+IPv6Exit 1
+ExitPolicy accept6 [::1]:*
+ExitPolicyRejectPrivate 0
+ExitPolicy accept6 private:*
+ExitPolicy reject6 *:*
