@@ -1,0 +1,3 @@
+[submodule "external/microrestd"]
+	path = external/microrestd
+	url = https://github.com/ufal/microrestd.git.git
