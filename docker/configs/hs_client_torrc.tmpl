@@ -1,0 +1,54 @@
+TestingTorNetwork 1
+RunAsDaemon 0
+Nickname ${inventory_hostname}
+ContactInfo torplus2020@gmail.com
+Address ${self_host}
+DataDirectory ${data_directory}
+PidFile ${data_directory}/pid
+GeoIPFile /root/geodata/geoip
+GeoIPv6File /root/geodata/geoip6
+
+MaxConsensusAgeForDiffs 9
+
+PathsNeededToBuildCircuits 0.95
+#TestingDirAuthVoteExit *
+#TestingDirAuthVoteHSDir *
+#TestingDirAuthVoteGuard *
+
+CookieAuthentication 1
+ProtocolWarnings 1
+SafeLogging 0
+LogTimeGranularity 1
+
+SocksPort 9050
+ControlPort 9051
+#OrPort 5037
+
+PPChannelCallbackPort 5817
+PPChannelPort 28080
+EnablePaymentLog 1
+
+EnforceDistinctSubnets 0
+BandwidthRate 2 GByte
+BandwidthBurst 2 GByte
+
+HardwareAccel 1
+AccelName rdrand
+
+${dirauth}
+
+HiddenServiceDir ${hs_directory}/hsv3
+HiddenServiceVersion 3
+HiddenServicePort 80 127.0.0.1:81
+HiddenServicePort 443 127.0.0.1:444
+HiddenServicePort 4001 127.0.0.1:4001
+HiddenServicePort 5001 127.0.0.1:5001
+HiddenServicePort 8080 127.0.0.1:8080
+HiddenServicePort 30500 127.0.0.1:30500
+HiddenServiceAllowUnknownPorts 1
+
+EntryNodes {de},{gb},{jp}
+ExitNodes {de},{gb},{jp}
+MiddleNodes {de},{gb},{jp}
+
+
