@@ -1,0 +1,11 @@
+Address 127.0.0.1
+DataDirectory /root/tor
+EnforceDistinctSubnets 0
+GeoIPFile /usr/local/share/tor/geoip
+GeoIPv6File /usr/local/share/tor/geoip6
+Nickname piper
+SocksPort 9050
+ControlPort 9051
+ORPort 5037
+PPChannelCallbackPort 5817
+PPChannelPort 28080
