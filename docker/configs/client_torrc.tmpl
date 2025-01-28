@@ -1,0 +1,36 @@
+TestingTorNetwork 1
+RunAsDaemon 0
+Nickname ${inventory_hostname}
+Address ${self_host}
+DataDirectory ${data_directory}
+PidFile ${data_directory}/pid
+
+PathsNeededToBuildCircuits 0.95
+
+ShutdownWaitLength 2
+DisableDebuggerAttachment 0
+EnforceDistinctSubnets 0
+
+SocksPort 9050
+ControlPort 9051
+ControlSocket ${data_directory}/control
+CookieAuthentication 1
+
+PPChannelCallbackPort 5817
+PPChannelPort 28080
+EnablePaymentLog 1
+
+ProtocolWarnings 1
+SafeLogging 0
+LogTimeGranularity 1
+
+#Sandbox 1
+
+BandwidthRate 2 GByte
+BandwidthBurst 2 GByte
+
+${dirauth}
+
+HomeZone {de},{jp},{gb},{il},{ru},{ua}
+HomeZone {us},{ca},{mx}
+HomeZone {cn},{sg},{kr}
