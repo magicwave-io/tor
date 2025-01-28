@@ -1,0 +1,11 @@
+[Unit]
+Description=Tor+ service
+
+[Service]
+User=edikk202
+WorkingDirectory=/opt/paidpiper/tor_plus
+ExecStart=/usr/local/bin/tor
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
