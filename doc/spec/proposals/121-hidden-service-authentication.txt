@@ -1,0 +1,650 @@
+Filename: 121-hidden-service-authentication.txt
+Title: Hidden Service Authentication
+Version: $LastChangedRevision$
+Last-Modified: $LastChangedDate$
+Author: Tobias Kamm, Thomas Lauterbach, Karsten Loesing, Ferdinand Rieger,
+        Christoph Weingarten
+Created: 10-Sep-2007
+Status: Open
+
+Change history:
+
+  26-Sep-2007  Initial proposal for or-dev
+  08-Dec-2007  Incorporated comments by Nick posted to or-dev on 10-Oct-2007
+  15-Dec-2007  Rewrote complete proposal for better readability, modified
+               authentication protocol, merged in personal notes
+  24-Dec-2007  Replaced misleading term "authentication" by "authorization"
+               and added some clarifications (comments by Sven Kaffille)
+
+Overview:
+
+  This proposal deals with a general infrastructure for performing
+  authorization (not necessarily implying authentication) of requests to
+  hidden services at three points: (1) when downloading and decrypting
+  parts of the hidden service descriptor, (2) at the introduction point,
+  and (3) at Bob's onion proxy before contacting the rendezvous point. A
+  service provider will be able to restrict access to his service at these
+  three points to authorized clients only. Further, the proposal contains a
+  first instance of an authorization protocol for the presented
+  infrastructure.
+
+  This proposal is based on v2 hidden service descriptors as described in
+  proposal 114 and introduced in version 0.2.0.10-alpha.
+
+  The proposal is structured as follows: The next section motivates the
+  integration of authorization mechanisms in the hidden service protocol.
+  Then we describe a general infrastructure for authorization in hidden
+  services, followed by a specific authorization protocol for this
+  infrastructure. At the end we discuss a number of attacks and non-attacks
+  as well as compatibility issues.
+
+Motivation:
+
+  The major part of hidden services does not require client authorization
+  now and won't do so in the future. To the contrary, many clients would
+  not want to be (pseudonymously) identifiable by the service (though this
+  is unavoidable to some extent), but rather use the service
+  anonymously. These services are not addressed by this proposal.
+
+  However, there may be certain services which are intended to be accessed
+  by a limited set of clients only. A possible application might be a
+  wiki or forum that should only be accessible for a closed user group.
+  Another, less intuitive example might be a real-time communication
+  service, where someone provides a presence and messaging service only to
+  his buddies. Finally, a possible application would be a personal home
+  server that should be remotely accessed by its owner.
+
+  Performing authorization for a hidden service within the Tor network, as
+  proposed here, offers a range of advantages compared to allowing all
+  client connections in the first instance and deferring authorization to
+  the transported protocol:
+
+  (1) Reduced traffic: Unauthorized requests would be rejected as early as
+  possible, thereby reducing the overall traffic in the network generated
+  by establishing circuits and sending cells.
+
+  (2) Better protection of service location: Unauthorized clients could not
+  force Bob to create circuits to their rendezvous points, thus preventing
+  the attack described by Øverlier and Syverson in their paper "Locating
+  Hidden Servers" even without the need for guards.
+
+  (3) Hiding activity: Apart from performing the actual authorization, a
+  service provider could also hide the mere presence of his service from
+  unauthorized clients when not providing hidden service descriptors to
+  them and rejecting unauthorized requests already at the introduction
+  point (ideally without leaking presence information at any of these
+  points).
+
+  (4) Better protection of introduction points: When providing hidden
+  service descriptors to authorized clients only and encrypting the
+  introduction points as described in proposal 114, the introduction points
+  would be unknown to unauthorized clients and thereby protected from DoS
+  attacks.
+
+  (5) Protocol independence: Authorization could be performed for all
+  transported protocols, regardless of their own capabilities to do so.
+
+  (6) Ease of administration: A service provider running multiple hidden
+  services would be able to configure access at a single place uniformly
+  instead of doing so for all services separately.
+
+  (7) Optional QoS support: Bob could adapt his node selection algorithm
+  for building the circuit to Alice's rendezvous point depending on a
+  previously guaranteed QoS level, thus providing better latency or
+  bandwidth for selected clients.
+
+  A disadvantage of performing authorization within the Tor network is
+  that a hidden service cannot make use of authorization data in
+  the transported protocol. Tor hidden services were designed to be
+  independent of the transported protocol. Therefore it's only possible to
+  either grant or deny access to the whole service, but not to specific
+  resources of the service. 
+
+  Authorization often implies authentication, i.e. proving one's identity.
+  However, when performing authorization within the Tor network, untrusted
+  points should not gain any useful information about the identities of
+  communicating parties, neither server nor client. A crucial challenge is
+  to remain anonymous towards directory servers and introduction points.
+  However, trying to hide identity from the hidden service is a futile
+  task, because a client would never know if he is the only authorized
+  client and therefore perfectly identifiable. Therefore, hiding identity
+  from the hidden service is not aimed by this proposal.
+
+  The current implementation of hidden services does not provide any kind
+  of authorization. The hidden service descriptor version 2, introduced by
+  proposal 114, was designed to use a descriptor cookie for downloading and
+  decrypting parts of the descriptor content, but this feature is not yet
+  in use. Further, most relevant cell formats specified in rend-spec
+  contain fields for authorization data, but those fields are neither
+  implemented nor do they suffice entirely.
+
+Details:
+
+  1. General infrastructure for authorization to hidden services 
+
+  We spotted three possible authorization points in the hidden service
+  protocol:
+
+    (1) when downloading and decrypting parts of the hidden service
+        descriptor,
+    (2) at the introduction point, and
+    (3) at Bob's onion proxy before contacting the rendezvous point.
+
+  The general idea of this proposal is to allow service providers to
+  restrict access to all of these points to authorized clients only.
+
+  1.1. Client authorization at directory
+
+  Since the implementation of proposal 114 it is possible to combine a
+  hidden service descriptor with a so-called descriptor cookie. If done so,
+  the descriptor cookie becomes part of the descriptor ID, thus having an
+  effect on the storage location of the descriptor. Someone who has learned
+  about a service, but is not aware of the descriptor cookie, won't be able
+  to determine the descriptor ID and download the current hidden service
+  descriptor; he won't even know whether the service has uploaded a
+  descriptor recently. Descriptor IDs are calculated as follows (see
+  section 1.2 of rend-spec for the complete specification of v2 hidden
+  service descriptors):
+
+      descriptor-id =
+          H(permanent-id | H(time-period | descriptor-cookie | replica))
+
+  The second purpose of the descriptor cookie is to encrypt the list of
+  introduction points, including optional authorization data. Hence, the
+  hidden service directories won't learn any introduction information from
+  storing a hidden service descriptor. This feature is implemented but
+  unused at the moment, so that this proposal will harness the advantages
+  of proposal 114.
+
+  The descriptor cookie can be used for authorization by keeping it secret
+  from everyone but authorized clients. A service could then decide whether
+  to publish hidden service descriptors using that descriptor cookie later
+  on. An authorized client being aware of the descriptor cookie would be
+  able to download and decrypt the hidden service descriptor.
+
+  The number of concurrently used descriptor cookies for one hidden service
+  is not restricted. A service could use a single descriptor cookie for all
+  users, a distinct cookie per user, or something in between, like one
+  cookie per group of users. It is up to the specific protocol and how it
+  is applied by a service provider. However, we advise to use a small
+  number of descriptor cookies for efficiency reasons and for improving the
+  ability to hide presence of a service (see security implications at the
+  end of this document).
+
+  Although this part of the proposal is meant to describe a general
+  infrastructure for authorization, changing the way of using the
+  descriptor cookie to look up hidden service descriptors, e.g. applying
+  some sort of asymmetric crypto system, would require in-depth changes
+  that would be incompatible to v2 hidden service descriptors. On the
+  contrary, using another key for en-/decrypting the introduction point
+  part of a hidden service descriptor, e.g. a different symmetric key or
+  asymmetric encryption, would be easy to implement and compatible to v2
+  hidden service descriptors as understood by hidden service directories
+  (clients and servers would have to be upgraded anyway for using the new
+  features).
+
+  1.2. Client authorization at introduction point
+
+  The next possible authorization point after downloading and decrypting
+  a hidden service descriptor is the introduction point. It is important
+  for authorization, because it bears the last chance of hiding presence
+  of a hidden service from unauthorized clients. Further, performing
+  authorization at the introduction point might reduce traffic in the
+  network, because unauthorized requests would not be passed to the
+  hidden service. This applies to those clients who are aware of a
+  descriptor cookie and thereby of the hidden service descriptor, but do
+  not have authorization data to pass the introduction point or access the
+  service (such a situation might occur when authorization data for
+  authorization at the directory is not issued on a per-user base as
+  opposed to authorization data for authorization at the introduction
+  point).
+
+  It is important to note that the introduction point must be considered
+  untrustworthy, and therefore cannot replace authorization at the hidden
+  service itself. Nor should the introduction point learn any sensitive
+  identifiable information from either server or client.
+
+  In order to perform authorization at the introduction point, three
+  message formats need to be modified: (1) v2 hidden service descriptors,
+  (2) ESTABLISH_INTRO cells, and (3) INTRODUCE1 cells.
+
+  A v2 hidden service descriptor needs to contain authorization data that
+  is introduction-point-specific and sometimes also authorization data
+  that is introduction-point-independent. Therefore, v2 hidden service
+  descriptors as specified in section 1.2 of rend-spec already contain two
+  reserved fields "intro-authorization" and "service-authorization"
+  (originally, the names of these fields were "...-authentication")
+  containing an authorization type number and arbitrary authorization
+  data. We propose that authorization data consists of base64 encoded
+  objects of arbitrary length, surrounded by "-----BEGIN MESSAGE-----" and
+  "-----END MESSAGE-----". This will increase the size of hidden service
+  descriptors, which however is possible, as there is no strict upper
+  limit.
+
+  The current ESTABLISH_INTRO cells as described in section 1.3 of
+  rend-spec don't contain either authorization data or version
+  information. Therefore, we propose a new version 1 of the ESTABLISH_INTRO
+  cells adding these two issues as follows:
+
+     V      Format byte: set to 255               [1 octet]
+     V      Version byte: set to 1                [1 octet]
+     KL     Key length                           [2 octets]
+     PK     Bob's public key                    [KL octets]
+     HS     Hash of session info                [20 octets]
+     AUTHT  The auth type that is supported       [1 octet]
+     AUTHL  Length of auth data                  [2 octets]
+     AUTHD  Auth data                            [variable]
+     SIG    Signature of above information       [variable]
+
+  From the format it is possible to determine the maximum allowed size for
+  authorization data: given the fact that cells are 512 octets long, of
+  which 498 octets are usable (see section 6.1 of tor-spec), and assuming
+  1024 bit = 128 octet long keys, there are 215 octets left for
+  authorization data. Hence, authorization protocols are bound to use no
+  more than these 215 octets, regardless of the number of clients that
+  shall be authenticated at the introduction point. Otherwise, one would
+  need to send multiple ESTABLISH_INTRO cells or split them up, what we do
+  not specify here.
+
+  In order to understand a v1 ESTABLISH_INTRO cell, the implementation of
+  a relay must have a certain Tor version, which would probably be some
+  0.2.1.x. Hidden services need to be able to distinguish relays being
+  capable of understanding the new v1 cell formats and perform
+  authorization. We propose to use the version number that is contained in
+  networkstatus documents to find capable introduction points.
+
+  The current INTRODUCE1 cells as described in section 1.8 of rend-spec is
+  not designed to carry authorization data and has no version number, too.
+  We propose the following version 1 of INTRODUCE1 cells:
+
+  Cleartext
+     V      Version byte: set to 1                [1 octet]
+     PK_ID  Identifier for Bob's PK             [20 octets]
+     AUTHT  The auth type that is supported       [1 octet]
+     AUTHL  Length of auth data                  [2 octets]
+     AUTHD  Auth data                            [variable]
+  Encrypted to Bob's PK:
+     (RELAY_INTRODUCE2 cell)
+
+  The maximum length of contained authorization data depends on the length
+  of the contained INTRODUCE2 cell. A calculation follows below when
+  describing the INTRODUCE2 cell format we propose to use.
+
+  Unfortunately, v0 INTRODUCE1 cells consist only of a fixed-size,
+  seemingly random PK_ID, followed by the encrypted INTRODUCE2 cell. This
+  makes it impossible to distinguish v0 INTRODUCE1 cells from any later
+  format. In particular, it is not possible to introduce some kind of
+  format and version byte for newer versions of this cell. That's probably
+  where the comment "[XXX011 want to put intro-level auth info here, but no
+  version. crap. -RD]" that was part of rend-spec some time ago comes from.
+
+  Processing of v1 INTRODUCE1 cells therefore requires knowledge about the
+  context in which they are used. As a result, we propose that when
+  receiving a v1 ESTABLISH_INTRO cell, an introduction point only accepts
+  v1 INTRODUCE1 cells later on. Hence, the same introduction point cannot
+  be used to accept both v0 and v1 INTRODUCE1 cells for the same service.
+  (Another solution would be to distinguish v0 and v1 INTRODUCE1 cells by
+  their size, as v0 INTRODUCE1 cells can only have specific cell sizes,
+  depending on the version of the contained INTRODUCE2 cell; however, this
+  approach does not appear very clean.)
+
+  1.3. Client authorization at hidden service
+
+  The time when a hidden service receives an INTRODUCE2 cell constitutes
+  the last possible authorization point during the hidden service
+  protocol. Performing authorization here is easier than at the other two
+  authorization points, because there are no possibly untrusted entities
+  involved.
+
+  In general, a client that is successfully authorized at the introduction
+  point should be granted access at the hidden service, too. Otherwise, the
+  client would receive a positive INTRODUCE_ACK cell from the introduction
+  point and conclude that it may connect to the service, but the request
+  will be dropped without notice. This would appear as a failure to
+  clients. Therefore, the number of cases in which a client successfully
+  passes the introduction point, but fails at the hidden service should be
+  zero. However, this does not lead to the conclusion, that the
+  authorization data used at the introduction point and the hidden service
+  must be the same, but only that both authorization data should lead to
+  the same authorization result.
+
+  Authorization data is transmitted from client to server via an
+  INTRODUCE2 cell that is forwarded by the introduction point. There are
+  versions 0 to 2 specified in section 1.8 of rend-spec, but none of these
+  contains fields for carrying authorization data. We propose a slightly
+  modified version of v3 INTRODUCE2 cells that is specified in section
+  1.8.1 and which is not implemented as of December 2007. The only change
+  is to switch the lengths of AUTHT and AUTHL, which we assume to be a typo
+  in current rend-spec. The proposed format of v3 INTRODUCE2 cells is as
+  follows:
+
+     VER    Version byte: set to 3.               [1 octet]
+     ATYPE  An address type (typically 4)         [1 octet]
+     ADDR   Rendezvous point's IP address  [4 or 16 octets]
+     PORT   Rendezvous point's OR port           [2 octets]
+     AUTHT  The auth type that is supported       [1 octet]
+     AUTHL  Length of auth data                  [2 octets]
+     AUTHD  Auth data                            [variable]
+     ID     Rendezvous point identity ID        [20 octets]
+     KLEN   Length of onion key                  [2 octets]
+     KEY    Rendezvous point onion key        [KLEN octets]
+     RC     Rendezvous cookie                   [20 octets]
+     g^x    Diffie-Hellman data, part 1        [128 octets]
+
+  The maximum possible length of authorization data is related to the
+  enclosing INTRODUCE1 cell. A v3 INTRODUCE2 cell with IPv6 address and
+  1024 bit = 128 octets long public keys without any authorization data
+  occupies 321 octets, plus 58 octets for hybrid public key encryption (see
+  section 5.1 of tor-spec on hybrid encryption of CREATE cells). The
+  surrounding v1 INTRODUCE1 cell requires 24 octets. This leaves only 95
+  of the 498 available octets free, which must be shared between
+  authorization data to the introduction point _and_ to the hidden
+  service.
+
+  When receiving a v3 INTRODUCE2 cell, Bob checks whether a client has
+  provided valid authorization data to him. He will only then build a
+  circuit to the provided rendezvous point and otherwise will drop the
+  cell.
+
+  There might be several attacks based on the idea of replaying existing
+  cells to the hidden service. In particular, someone (the introduction
+  point or an evil authenticated client) might replay valid INTRODUCE2
+  cells to make the hidden service build an arbitrary number of circuits to
+  (maybe long gone) rendezvous points. Therefore, we propose that hidden
+  services maintain a history of received INTRODUCE2 cells within the last
+  hour and only accept INTRODUCE2 cells matching the following rules:
+
+    (1) a maximum of 3 cells coming from the same client and containing the
+        same rendezvous cookie, and
+    (2) a maximum of 10 cells coming from the same client with different
+        rendezvous cookies.
+
+  This allows a client to retry connection establishment using the same
+  rendezvous point for 3 times and a total number of 10 connection
+  establishments (not requests in the transported protocol) per hour.
+
+  1.4. Summary of authorization data fields
+
+  In summary, the proposed descriptor format and cell formats provide the
+  following fields for carrying authorization data:
+
+  (1) The v2 hidden service descriptor contains:
+      - a descriptor cookie that is used for the lookup process, and
+      - an arbitrary encryption schema to ensure authorization to access
+        introduction information (currently symmetric encryption with the
+        descriptor cookie).
+
+  (2) For performing authorization at the introduction point we can use:
+      - the fields intro-authorization and service-authorization in
+        hidden service descriptors,
+      - a maximum of 215 octets in the ESTABLISH_INTRO cell, and
+      - one part of 95 octets in the INTRODUCE1 cell.
+
+  (3) For performing authorization at the hidden service we can use:
+      - the fields intro-authorization and service-authorization in
+        hidden service descriptors,
+      - the other part of 95 octets in the INTRODUCE2 cell.
+
+  It will also still be possible to access a hidden service without any
+  authorization or only use a part of the authorization infrastructure.
+  However, this requires to consider all parts of the infrastructure. For
+  example, authorization at the introduction point relying on confidential
+  intro-authorization data transported in the hidden service descriptor
+  cannot be performed without using an encryption schema for introduction
+  information.
+
+  1.5. Managing authorization data at servers and clients
+
+  In order to provide authorization data at the hidden server and the
+  authenticated clients, we propose to use files---either the tor
+  configuration file or separate files. In the latter case a hidden server
+  would use one file per provided service, and a client would use one file
+  per server she wants to access. The exact format of these special files
+  depends on the authorization protocol used.
+
+  Currently, rend-spec contains the proposition to encode client-side
+  authorization data in the URL, like in x.y.z.onion. This was never used
+  and is also a bad idea, because in case of HTTP the requested URL may be
+  contained in the Host and Referer fields.
+
+  2. An authorization protocol based on group and user passwords
+
+  In the following we discuss an authorization protocol for the proposed
+  authorization architecture that performs authorization at all three
+  proposed authorization points. The protocol relies on two symmetrically
+  shared keys: a group key and a user key. The reason for this separation
+  as compared to using a single key for each user is the fact that the
+  number of descriptor cookies should be limited, so that the group key
+  will be used for authenticating at the directory, whereas two keys
+  derived from the user key will be used for performing authorization at
+  the introduction and the hidden service.
+
+  2.1. Client authorization at directory
+
+  The server creates groups of users that shall be able to access his
+  service. He provides all users of a certain group with the same group key
+  which is a password of arbitrary length.
+
+  The group key is used as input to derive a 128 bit descriptor cookie from
+  it. We propose to apply a secure hash function and use the first 128 bits
+  of output:
+
+     descriptor-cookie = H(group-key)
+
+  Hence, there will be a distinct hidden service descriptor for every group
+  of users. All descriptors contain the same introduction points and the
+  authorization data required by the users of the given group. Whenever a
+  server decides to remove authorization for a group, he can simply stop
+  publishing hidden service descriptors using the descriptor cookie.
+
+  2.2. Client authorization at introduction point
+
+  The idea for authenticating at the introduction point is borrowed from
+  authorization at the rendezvous point using a rendezvous cookie. A
+  rendezvous cookie is created by the client and encrypted for the server
+  in order to authenticate the server at the rendezvous point. Likewise,
+  the so-called introduction cookie is created by the server and encrypted
+  for the client in order to authenticate the client at the introduction
+  point.
+
+  More precise, the server creates a new introduction cookie when
+  establishing an introduction point and includes it in the ESTABLISH_INTRO
+  cell that it sends to the introduction point. This introduction cookie
+  will be used by all clients during the complete time of using this
+  introduction point. The server then encrypts the introduction cookie for
+  all authorized clients (as described in the next paragraph) and includes
+  it in the introduction-point-specific part of the hidden service
+  descriptor. A client reads and decrypts the introduction cookie from the
+  hidden service descriptor and includes it in the INTRODUCE1 cell that it
+  sends to the introduction point. The introduction point can then compare
+  the introduction cookie included in the INTRODUCE1 cell with the value
+  that it previously received in the ESTABLISH_INTRO cell. If both values
+  match, the introduction point passes the INTRODUCE2 cell to the hidden
+  service.
+
+  For the sake of simplicity, the size of an introduction cookie should be
+  only 16 bytes so that they can be encrypted using AES-128 without using
+  a block mode. Although rendezvous cookies are 20 bytes long, the 16 bytes
+  of an introduction cookie should still provide similar, or at least
+  sufficient security.
+
+  Encryption of the introduction cookie is done on a per user base. Every
+  client shares a password of arbitrary length with the server, which is
+  the so-called user key. The server derives a symmetric key from the
+  client's user key by applying a secure hash function and using the first
+  128 bits of output as follows:
+
+     encryption-key = H(user-key | "INTRO")
+
+  It is important that the encryption key does not allow any inference on
+  the user key, because the latter will also be used for authorization at
+  the hidden service. This is ensured by applying the secure one-way
+  function H.
+
+  The 16 bytes long, symmetrically encrypted introduction cookies are
+  encoded in binary form in the authorization data object of a hidden
+  service descriptor. Additionally, for every client there is a 20 byte
+  long client identifier that is also derived from the user key, so that
+  the client can identify which value to decrypt. The client identifier is
+  determined as follows:
+
+     client-id = H(user-key | "CLIENT")
+
+  The authorization data encoded to the hidden service descriptor consists
+  of the concatenation of pairs consisting of 20 byte client identifiers
+  and 16 byte encrypted introduction cookies. The authorization type
+  number for the encrypted introduction cookies as well as for
+  ESTABLISH_INTRO and INTRODUCE1 cells is "1".
+
+  2.3. Client authorization at hidden service
+
+  Authorization at the hidden service also makes use of the user key,
+  because whoever is authorized to pass the introduction point shall be
+  authorized to access the hidden service. Therefore, the server and client
+  derive a common value from the user key, which is called service cookie
+  and which is 20 bytes long:
+
+     service-cookie = H(user-key | "SERVICE")
+
+  The client is supposed to include this service cookie, preceded by the 20
+  bytes long client ID, in INTRODUCE2 cells that it sends to the server.
+  The server compares authorization data of incoming INTRODUCE2 cells with
+  the locally stored value that it would expect. The authorization type
+  number of this protocol for INTRODUCE2 cells is "1".
+
+  Passing a derived value of a client's user key will make clients
+  identifiable to the hidden service. Although there might be ways to limit
+  identifiability, an authorized client can never be sure that he stays
+  anonymous to the hidden service. For example, if we created a service
+  cookie that is the same for all users and encrypted it for all users, and
+  if we further included a checksum of this service cookie in the
+  descriptor to prove that all users have the same value, a client would
+  never know if he is the only valid user contained in this descriptor,
+  with the other users only be fakes created by the hidden service.
+  Therefore, we did not make attempts to hide a client's identity from a
+  hidden service. Another reason was that we would not be able to apply a
+  connection limit of 10 requests per hour and user that helps prevent some
+  threats.
+
+  2.4. Providing authorization data
+
+  The authorization data that needs to be provided by servers consists of
+  a number of group keys, each having a number of user keys assigned. These
+  data items could be provided by two new configuration options
+  "HiddenServiceAuthGroup group-name group-key" and "HiddenServiceAuthUser
+  user-name user-key" with the semantics that a group contains all users
+  directly following the group key definition and before reaching the next
+  group key definition for a hidden service.
+
+  On client side, authorization data also consists of a group and a user
+  key. Therefore, a new configuration option "HiddenServiceAuthClient
+  onion-address group-key user-key" could be introduced that could be
+  written to any place in the configuration file. Whenever the user would
+  try to access the given onion address, the given group and user key
+  would be used for authorization.
+
+Security implications:
+
+  In the following we want to discuss attacks and non-attacks by dishonest
+  entities in the presented infrastructure and specific protocol. These
+  security implications would have to be verified once more when adding
+  another protocol. The dishonest entities (theoretically) include the
+  hidden server itself, the authenticated clients, hidden service directory
+  nodes, introduction points, and rendezvous points. The relays that are
+  part of circuits used during protocol execution, but never learn about
+  the exchanged descriptors or cells by design, are not considered.
+  Obviously, this list makes no claim to be complete. The discussed attacks
+  are sorted by the difficulty to perform them, in ascending order,
+  starting with roles that everyone could attempt to take and ending with
+  partially trusted entities abusing the trust put in them.
+
+  (1) A hidden service directory could attempt to conclude presence of a
+  server from the existence of a locally stored hidden service descriptor:
+  This passive attack is possible, because descriptors need to contain a
+  publicly visible signature of the server (see proposal 114 for a more
+  extensive discussion of the v2 descriptor format). A possible protection
+  would be to reduce the number of concurrently used descriptor cookies and
+  increase the number of hidden service directories in the network.
+
+  (2) A hidden service directory could try to break the descriptor cookies
+  of locally stored descriptors: This attack can be performed offline. The
+  only useful countermeasure against it might be using safe passwords that
+  are generated by Tor.
+
+  (3) An introduction point could try to identify the pseudonym of the
+  hidden service on behalf of which it operates: This is impossible by
+  design, because the service uses a fresh public key for every
+  establishment of an introduction point (see proposal 114) and the
+  introduction point receives a fresh introduction cookie, so that there is
+  no identifiable information about the service that the introduction point
+  could learn. The introduction point cannot even tell if client accesses
+  belong to the same client or not, nor can it know the total number of
+  authorized clients. The only information might be the pattern of
+  anonymous client accesses, but that is hardly enough to reliably identify
+  a specific server.
+
+  (4) An introduction point could want to learn the identities of accessing
+  clients: This is also impossible by design, because all clients use the
+  same introduction cookie for authorization at the introduction point.
+
+  (5) An introduction point could try to replay a correct INTRODUCE1 cell
+  to other introduction points of the same service, e.g. in order to force
+  the service to create a huge number of useless circuits: This attack is
+  not possible by design, because INTRODUCE1 cells need to contain an
+  introduction cookie that is different for every introduction point.
+
+  (6) An introduction point could attempt to replay a correct INTRODUCE2
+  cell to the hidden service, e.g. for the same reason as in the last
+  attack: This attack is very limited by the fact that a server will only
+  accept 3 INTRODUCE2 cells containing the same rendezvous cookie and drop
+  all further replayed cells.
+
+  (7) An introduction point could block client requests by sending either
+  positive or negative INTRODUCE_ACK cells back to the client, but without
+  forwarding INTRODUCE2 cells to the server: This attack is an annoyance
+  for clients, because they might wait for a timeout to elapse until trying
+  another introduction point. However, this attack is not introduced by
+  performing authorization and it cannot be targeted towards a specific
+  client. A countermeasure might be for the server to periodically perform
+  introduction requests to his own service to see if introduction points
+  are working correctly.
+
+  (8) The rendezvous point could attempt to identify either server or
+  client: No, this remains impossible as it was before, because the
+  rendezvous cookie does not contain any identifiable information.
+
+  (9) An authenticated client could try to break the encryption keys of the
+  other authenticated clients that have their introduction cookies
+  encrypted in the hidden service descriptor: This known-plaintext attack
+  can be performed offline. The only useful countermeasure against it could
+  be safe passwords that are generated by Tor. However, the attack would
+  not be very useful as long as encryption keys do not reveal information
+  on the contained user key.
+
+  (10) An authenticated client could swamp the server with valid INTRODUCE1
+  and INTRODUCE2 cells, e.g. in order to force the service to create
+  useless circuits to rendezvous points; as opposed to an introduction
+  point replaying the same INTRODUCE2 cell, a client could include a new
+  rendezvous cookie for every request: The countermeasure for this attack
+  is the restriction to 10 connection establishments per client and hour.
+
+  (11) An authenticated client could attempt to break the service cookie of
+  another authenticated client to obtain access at the hidden service: This
+  requires a brute-force online attack. There are no countermeasures
+  provided, but the question arises whether the outcome of this attack is
+  worth the cost. The service cookie from one authenticated client is as
+  good as from another, with the only exception of possible better QoS
+  properties of certain clients.
+
+Compatibility:
+
+  An implementation of this proposal would require changes to hidden
+  servers and clients to process authorization data and encode and
+  understand the new formats. However, both servers and clients would
+  remain compatible to regular hidden services without authorization.
+
+  Further, the implementation of introduction points would have to be
+  changed, so that they understand the new cell versions and perform
+  authorization. But again, the new introduction points would remain
+  compatible to the existing hidden service protocol.
+
