@@ -1,0 +1,157 @@
+# C/C++ with GCC
+# Build your C/C++ project with GCC using make.
+# Add steps that publish test results, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/c-cpp/gcc
+
+trigger:
+- tor_plus_merge_v0.4.6-dev-home_zones
+
+variables:
+   major: 1
+   minor: 0
+
+name: $(major).$(minor)$(Rev:.r)
+
+jobs:
+- job: Tor_Plus_For_Linux
+
+  pool:
+    name: Ubuntu_Pool
+
+  steps:
+  - script: |
+      ./autogen.sh
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autogen'
+
+  - script: |
+      autoreconf -f -i
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autoreconf'
+
+  - script: |
+      ./configure --disable-asciidoc
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'configure'
+
+  - script: |
+      make -j $(nproc)
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make'
+
+  - script: |
+      make test
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make test'
+
+  - template: azure-artefacts-template.yml
+    parameters:
+      OSName: linux
+      ExeExt: ''
+
+- job: Tor_Plus_For_Windows
+
+  pool:
+    name: Windows_Pool
+
+  steps:
+  - script: |
+      echo %PATH%
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'Show PATH'
+
+  - script: |
+      "c:/msys64/usr/bin/bash" -e -c "autoreconf -i"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autogen'
+
+  - script: |
+      "c:/msys64/usr/bin/bash" -e -c "MAKE='mingw32-make' ZSTD_CFLAGS='-L/mingw64/include' ZSTD_LIBS='-L/mingw64/lib -lzstd' ./configure --prefix=/mingw64 --build=x86_64-w64-mingw32 --host=x86_64-w64-mingw32 --with-openssl-dir=/mingw64 --disable-asciidoc --disable-gcc-hardening CFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' CXXFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0'"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'configure'
+
+  - script: |
+      "c:/msys64/usr/bin/bash" -e -c "V=1 mingw32-make -k CFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' CXXFLAGS='-D__USE_MINGW_ANSI_STDIO=0 -mwindows -O3 -g0' -j %NUMBER_OF_PROCESSORS%"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make'
+
+  - script: |
+      "C:/msys64/mingw64/bin/strip" "src/app/tor.exe"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'strip'
+
+  - script: |
+      "c:/msys64/usr/bin/bash" -e -c "V=1 mingw32-make -k test -j %NUMBER_OF_PROCESSORS% | true"
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make test'
+
+  - template: azure-artefacts-template.yml
+    parameters:
+      OSName: windows
+      ExeExt: '.exe'
+
+- job: Tor_Plus_For_macOS
+
+  pool:
+    vmImage: 'macOS-10.15'
+
+  steps:
+#  - script: |
+#      brew update && brew upgrade
+#    displayName: 'Upgrade Homebrew installed packages'
+
+  - script: |
+      brew install make libevent automake json-c asciidoc zstd xz zlib openssl@1.1
+    displayName: 'install packeges'
+
+  - script: |
+      ./autogen.sh
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autogen'
+
+  - script: |
+      autoreconf -f -i
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'autoreconf'
+
+  - script: |
+      INCLUDE_PATH=/usr/local/opt/json-c/include LIBRARY_PATH=/usr/local/opt/json-c/lib ./configure --disable-asciidoc
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'configure'
+
+  - script: |
+      INCLUDE_PATH=/usr/local/opt/json-c/include LIBRARY_PATH=/usr/local/opt/json-c/lib make -j $(nproc)
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'build'
+
+  - script: |
+      LIBRARY_PATH=/usr/local/opt/json-c/lib make test -j
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'make test'
+
+  - template: azure-artefacts-template.yml
+    parameters:
+      OSName: mac
+      ExeExt: ''
+
+# - job: Tor_Plus_For_Docker
+
+#   pool:
+#     vmImage: 'ubuntu-20.04'
+
+#   steps:
+#   - task: Docker@1
+#     inputs:
+#       containerregistrytype: 'Azure Container Registry'
+#       azureSubscriptionEndpoint: 'U-BTech - CSP (Georest)(8a8eed1d-a101-45a3-bb4d-34065921a9aa)'
+#       azureContainerRegistry: 'torplusserviceregistry.azurecr.io'
+#       command: 'login'
+#     displayName: 'Docker login'
+
+#   - script: |
+#       make build_image
+#       make image
+#       make push
+#       make clean_up
+#     workingDirectory: $(Build.SourcesDirectory)/docker
+#     displayName: 'Docker build, push and clean up'
